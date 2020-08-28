@@ -4,17 +4,20 @@ library(caret)
 library(NLP)
 library(tm)
 library(pROC)
+library(dplyr)
 #dataForSvm = dataWithFilters
-#dataForSvm$LM = as.numeric(dataForSvm$LM)
-#dataForSvm$LM = ifelse(dataForSvm$LM == 2, 1, 0)
+dataForSvm = filtriraniPodaci
+dataForSvm$LM = ifelse(dataForSvm$LM == "robot", 1, 0)
+dataForSvm$LM = as.factor(dataForSvm$LM)
+dataForSvm = select(dataForSvm, cik, time, LM)
 mi=data.frame(dataForSvm)
 typeof(dataForSvm$LM)
 #mi=subset(mi,select=-LM)
 lapply(mi,class)
 
 #Data splitting
-positive=subset(mi,mi$LM==0)
-negative=subset(mi,mi$LM==1)
+positive=subset(mi,mi$LM=="human")
+negative=subset(mi,mi$LM=="robot")
 intrain=createDataPartition(1:nrow(positive),p=0.30,list=FALSE)
 train=positive[intrain,1:2]
 trainlabels=positive[intrain,3]
@@ -26,33 +29,35 @@ test=testwithclass[,1:2]
 testlables=testwithclass[,3]
 
 #Building SVM Model
-svm.model<-svm(train,y=NULL,
+svm.model<-svm(train,
+               y=NULL,
                type='one-classification',
                nu=0.01152346,
-              # gamma=0.18214,
                epsilon=25.11129,
                kernel = "radial",
                scale=TRUE)
-svm.predtrain<-predict(svm.model,train)
+# svm.predtrain<-predict(svm.model,train)
 svm.predtest<-predict(svm.model,test)
 summary(svm.predtest)
+svm.predtest
 summary(svm.model)
 #ROC and Confusion Matrix
-svm.predtest=as.numeric(svm.predtest)#since svm.predtest is in logical form
-svm.predtrain=as.numeric(svm.predtrain)#since svm.predtest is in logical form
-svm.roc=roc(testlables, svm.predtest)
+svm.roc=roc(testlables, as.numeric(svm.predtest))
 
 #AUC PLOT
 plot(svm.roc,legacy.axes = TRUE,print.auc = TRUE,col="red",main="ROC(SVM)")
 auc(svm.roc)
-
-testlables=as.character(testlables)
-trainlabels=as.character(trainlabels)
-svm.predtest=as.character(svm.predtest)
-svm.predtrain=as.character(svm.predtrain)
+testlables = as.character(testlables)
+testlables = ifelse(testlables == "human", "0", "1")
 
 #ACCURACY
-confusionMatrix(factor(testlables, levels=c("0", "1")), factor(svm.predtest, levels=c("0", "1")))
+confusionMatrix(factor(testlables, levels=c("0","1")), factor(as.numeric(svm.predtest), levels=c("0","1")))
+
+svm.predtest<-predict(svm.model,test)
+out_index=which(svm.predtest==FALSE)
+plot(testlables, col="blue", type="l")
+summary(testwithclass[,3])
+points(x=out_index, y=testlables[out_index], pch=18, col="red")
 
 # k = 29 gamma=25,cost = 10,kernel = 'radial' 0.8607547   0.6 test set
 # # in creating the folds we specify the target feature (dependent variable) and # of folds

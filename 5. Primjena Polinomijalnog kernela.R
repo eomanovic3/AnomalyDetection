@@ -19,11 +19,11 @@ normalize <- function(x) {
 
 dataForSvm$cik<-normalize(dataForSvm$cik)
 dataForSvm$time<-normalize(dataForSvm$time)
-dataForSvm$LM<- ifelse(dataForSvm$LM == 1, 0, 1)
+dataForSvm$LM<- ifelse(dataForSvm$LM == 0, "human", "robot")
 dataForSvm$LM<-as.factor(dataForSvm$LM)
 
 # Razdvojiti podatke na testne i trenirajuće primjerke
-split = sample.split(dataForSvm$LM, SplitRatio = 0.80) 
+split = sample.split(dataForSvm$LM, SplitRatio = 0.70) 
 training_set = subset(dataForSvm, split == TRUE) 
 test_set = subset(dataForSvm, split == FALSE) 
 
@@ -32,6 +32,10 @@ training_set$cik<-normalize(training_set$cik)
 training_set$time<-normalize(training_set$time)
 test_set$cik<-normalize(test_set$cik)
 test_set$time<-normalize(test_set$time)
+
+output.tune <- tune(svm,as.factor(LM) ~ ., data = training_set, kernel = "polynomial",
+                    ranges = list(costs = c(0.01, 0.1, 1, 10, 100, 1000), 
+                                  degree = c(1, 2, 3, 4, 5)))
 
 # Korištenje svm funkcije iz e1071 paketa kako bi se kreirao model učenja
 # Korišteni su gamma i cost izvedeni iz genetičkog algoritma
@@ -42,7 +46,7 @@ classifier = svm(formula = as.factor(LM) ~ .,
                  scale=FALSE,
                  na.action=na.omit, 
                  degree=5, 
-                 gamma=0.178, 
+                 cost=10, 
                  coef0=1)
 
 # Kreiranje predikcije
@@ -59,7 +63,13 @@ auc_curve = auc(rocCurve_svm)
 plot(rocCurve_svm,legacy.axes = TRUE,print.auc = TRUE,col="red",main="ROC(SVM)")
 auc_curve
 
+plot(svm_pred)
 plot(classifier, training_set)
+
+plot(svm_pred, test_set[,3])
+table(svm_pred, test_set[,3])
+mean(svm_pred == test_set[,3])
+
 # TRAINING SET SVM
 set.seed(500)
 set = training_set 
@@ -75,8 +85,8 @@ plot(set[, -3],
      xlim = range(X1), ylim = range(X2)) 
 
 contour(X1, X2, matrix(as.numeric(y_grid), length(X1), length(X2)), add = TRUE) 
-points(grid_set, pch = '.', col = ifelse(y_grid == 1, 'coral1', 'aquamarine')) 
-points(set, pch = 21, bg = ifelse(set[, 3] == 1, 'red3','green4')) 
+points(grid_set, pch = '.', col = ifelse(y_grid == "robot", 'coral1', 'aquamarine')) 
+points(set, pch = 21, bg = ifelse(set[, 3] == "robot", 'red3','green4')) 
 
 # TEST DATA SVM
 set = test_set 

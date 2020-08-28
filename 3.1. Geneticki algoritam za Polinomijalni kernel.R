@@ -23,7 +23,7 @@ rmsd <- function( train_data, test_data, d, gamma )
     type='C-classification',
     kernel="polynomial",
     degree = d, 
-    gamma = gamma, 
+    cost = gamma, 
     coef0=1, 
     scale=FALSE,
     na.action=na.omit, 
@@ -56,8 +56,8 @@ fitness_func <- function( x, cv_data )
 }
 
 ## Setuj opseg Gamma & C parametara
-para_value_min <- c( gamma = 1, d = 1 )
-para_value_max <- c( gamma = 2, d = 10 )
+para_value_min <- c( gamma = 1e-3, d = 1 )
+para_value_max <- c( gamma = 100, d = 10 )
 
 ## Pokreni genetički algoritam
 results <- ga( type = "real-valued", 

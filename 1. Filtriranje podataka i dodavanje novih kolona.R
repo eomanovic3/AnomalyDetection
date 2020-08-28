@@ -37,7 +37,7 @@ filterData <- function (data) {
 }
 
 # Detektovati robote koristeći se Loughran$McDonald pristupom
-removeRobotDataUsingLMApproach<- function (data) {
+detectRobotsUsingLMapproach<- function (data) {
   # Potrebno je transponovati podatke kako bi se moglo prolaziti petljom kroz redove
   transposedData <- as.data.frame(t(data))
   counter = 1
@@ -72,41 +72,89 @@ removeRobotDataUsingLMApproach<- function (data) {
   return(data)
 }
 
+#Filtrirati podatke na osnovu uvjeta u poglavlju 4.2.
 dataWithFilters = filterData(data)
-ee = (ddply(dataWithFilters,~ip,summarise,number_of_distinct_orders=length(unique(cik))))
-eeT=hash(ee$ip, ee$number_of_distinct_orders)
 
-res <- table(unlist(dataWithFilters$ip))
+# Dodati kolonu sa vremenom u minutama
+timeInMinutes = substr(as.character(dataWithFilters$time), 1, 5)
+dataWithFilters = cbind(dataWithFilters, timeInMinutes)
+
+# Izracunati broj unikatnih fajlova koji su preuzeti u minuti od strane ip adrese
+groupByMinutesAndCik = dataWithFilters %>%
+  group_by(ip, cik, timeInMinutes) %>% 
+  summarize(count = n())
+
+# Izracunati broj preuzimanja u minuti od strane ip adrese
+groupByMinutes = dataWithFilters %>% # take the diamonds data.fram and group it
+  group_by(ip, timeInMinutes) %>% # 56 groups
+  summarize(count = n())
+
+# Izracunati broj unikatnih fajlova po ip adresi
+uniqueCikData = (ddply(dataWithFilters,~ip,summarise,number_of_distinct_orders=length(unique(cik))))
+
+# Izracunati broj ip adresa koje su kreirale rekord u jednom danu
+ipCounter <- table(unlist(dataWithFilters$ip))
+
+# Napraviti key - value strukture sa ip adresama i potrebnim vrijednostima
+dictionaryForCik=hash(uniqueCikData$ip, uniqueCikData$number_of_distinct_orders)
+dictionaryForMinutes=hash(groupByMinutes$ip, groupByMinutes$count)
+dictionaryForDifferentCiks=hash(groupByMinutesAndCik$ip, groupByMinutesAndCik$count)
+
+# Transponovati set podataka, kako bi se moglo lakse manipulisati kolonama
 transposedData <- as.data.frame(t(dataWithFilters))
 
-dataWithFilters$frequencyCounter <- lapply(transposedData, function(x) {
-  return(res[x[[1]]][[1]])
+# Dodati potrebne kolone za krajnju racunicu robot/covjek 
+dataWithFilters$per_day_counter <- lapply(transposedData, function(x) {
+  return(ipCounter[x[[1]]][[1]])
 })
-dataNestoNesto = dataWithFilters
-dataWithFilters$cikDownloaded <- lapply(transposedData, function(x) {
-  return(eeT[x[[1]]][[x[[1]]]])
+dataWithFilters$per_minute_counter <- lapply(transposedData, function(x) {
+  return(dictionaryForMinutes[x[[1]]][[x[[1]]]])
 })
-dataWithFilters$LM = ifelse(dataWithFilters$frequencyCounter >= 50, 1, 0)
-# Dodati kolonu LM
-#dataWithLMcolumnNewApp = removeRobotDataUsingLMApproach(dataWithFilters)
-dataWithLMcolumn = as.data.frame(dataWithFilters)
-# Promijeniti kolonu vrijeme da ima epoch vrijednost
-dataWithLMcolumn$time = as.integer(as.POSIXct(paste(dataWithLMcolumn$date, dataWithLMcolumn$time)))
+dataWithFilters$per_cik_counter <- lapply(transposedData, function(x) {
+  return(dictionaryForCik[x[[1]]][[x[[1]]]])
+})
+dataWithFilters$per_different_cik_counter <- lapply(transposedData, function(x) {
+  return(dictionaryForDifferentCiks[x[[1]]][[x[[1]]]])
+})
 
-# Pretvoriti LM kolonu u tip faktor, radi lakšeg rada sa SVM funkcijama
-dataWithLMcolumn$LM = as.factor(dataWithLMcolumn$LM)
-dataWithLMcolumn$frequencyCounter = as.numeric(dataWithLMcolumn$frequencyCounter)
-dataWithLMcolumn$cikDownloaded = as.numeric(dataWithLMcolumn$cikDownloaded)
+# Definisati za svaki pristup kolonu koja govori da li je rekord napravio covjek ili robot
+dataWithFilters$LM = ifelse(dataWithFilters$per_day_counter >= 50, "robot", "human")
+dataWithFilters$DRT = ifelse(dataWithFilters$per_minute_counter >= 5 && dataWithFilters$per_day_counter >=1000, "robot", "human")
+dataWithFilters$Ryans = ifelse(dataWithFilters$per_different_cik_counter >= 3 && dataWithFilters$per_minute_counter >= 25 && dataWithFilters$per_day_counter >=500, "robot", "human")
+
+# Uklanjanje kolone timeInMinutes i date te pretvaranje time kolone u sekunde
+dataWithFilters$timeInMinutes = NULL
+dataWithFilters$dateTime = paste(dataWithFilters$date, dataWithFilters$time)
+dataWithFilters$epochTime = as.integer(as.POSIXct(dataWithFilters$dateTime))
+dataWithFilters$time = dataWithFilters$epochTime
+dataWithFilters$date = NULL
+dataWithFilters$epochTime = NULL
+dataWithFilters$dateTime = NULL
+
+dataWithProperColumns = as.data.frame(dataWithFilters)
+
+# Pretvoriti LM,DRT,Ryans kolonu u tip faktor, radi lakšeg rada sa SVM funkcijama
+dataWithProperColumns$LM = as.factor(dataWithProperColumns$LM)
+dataWithProperColumns$DRT = as.factor(dataWithProperColumns$LM)
+dataWithProperColumns$Ryans = as.factor(dataWithProperColumns$LM)
+dataWithProperColumns$per_different_cik_counter = as.numeric(dataWithProperColumns$per_different_cik_counter)
+dataWithProperColumns$per_minute_counter = as.numeric(dataWithProperColumns$per_minute_counter)
+dataWithProperColumns$per_day_counter = as.numeric(dataWithProperColumns$per_day_counter)
+dataWithProperColumns$per_cik_counter = as.numeric(dataWithProperColumns$per_cik_counter)
 
 # Ukloniti sve nekompletne logove
-dataWithLMcolumn = dataWithLMcolumn[complete.cases(dataWithLMcolumn), ]
+dataWithProperColumns = dataWithProperColumns[complete.cases(dataWithProperColumns), ]
 
 # Pretvoriti cik i time u numeričke vrijednosti
-dataWithLMcolumn$time = as.double(dataWithLMcolumn$time)
-dataWithLMcolumn$cik = as.double(dataWithLMcolumn$cik)
+dataWithProperColumns$time = as.double(dataWithProperColumns$time)
+dataWithProperColumns$cik = as.double(dataWithProperColumns$cik)
 
 # Finalne izmjene za krajnji set podataka koji će se koristiti
-dataForSvm = dataWithLMcolumn
-dataForSvm = dataWithLMcolumn[order(-dataWithLMcolumn$time),]
+dataForSvm = dataWithProperColumns[order(-dataWithProperColumns$time),]
+write.csv(dataForSvm, '/Users/emina/Desktop/podaciSaTriKolone.csv')
 
-write.csv(dataForSvm, '/Users/emina/Desktop/filtiraniPodaci.csv')
+finalSvm =dataForSvm[dataForSvm$browser %in% c("lin"), ]
+finalSvm <- finalSvm[finalSvm$find == 9, ]
+finalSvm <- finalSvm[finalSvm$code == 200, ]
+
+write.csv(finalSvm, '/Users/emina/Desktop/finalniSetZaFiltiranje.csv')
