@@ -1,7 +1,8 @@
 install.packages('GA')
 library(GA)
 dataForSvmGa = dataForSvm
-dataForSvmGa$LM = as.numeric(dataForSvm$LM)
+dataForSvmGa$LM = ifelse(dataForSvmGa$LM == "human", 0, 1)
+dataForSvmGa$LM =as.numeric(dataForSvmGa$LM)
 ## 5-fold cross validacija
 K = 5 
 fold_inds <- sample( 1 : K, nrow( dataForSvmGa ), replace = TRUE )
@@ -21,8 +22,8 @@ rmsd <- function( train_data, test_data, c, gamma )
     train_data,
     y=NULL,
     type='one-classification',
-    epsilon=c,
-    nu=gamma,
+    gama=gama,
+    nu=c,
     kernel = "radial",
     scale=TRUE
   )
@@ -54,8 +55,8 @@ fitness_func <- function( x, cv_data )
 }
 
 ## Setuj opseg Gamma & C parametara
-para_value_min <- c( gamma = 0, c = 0 )
-para_value_max <- c( gamma = 1, c = 50 )
+para_value_min <- c( gamma = 1e-3, c = 0 )
+para_value_max <- c( gamma = 2, c = 1 )
 
 ## Pokreni genetički algoritam
 results <- ga( type = "real-valued", 

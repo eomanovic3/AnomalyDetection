@@ -4,9 +4,9 @@ library(dplyr)
 library(stringr)
 library(caret)
 
-dataWithFiltersNONULL<-filtriraniPodaci
-dataWithFiltersNONULL = select(dataWithFiltersNONULL, time, cik, frequencyCounter)
-dataWithFiltersNONULL$frequencyCounter = as.factor(dataWithFiltersNONULL$frequencyCounter)
+dataWithFiltersNONULL<-finalSvm
+dataWithFiltersNONULL = select(dataWithFiltersNONULL, time, cik, per_day_counter)
+dataWithFiltersNONULL$per_day_counter = as.factor(dataWithFiltersNONULL$per_day_counter)
 
 n <- nrow(dataWithFiltersNONULL)  # Number of observations
 ntrain <- round(n*0.25)  # 75% for training set
@@ -15,7 +15,7 @@ tindex <- sample(n, ntrain)   # Create a random index
 train_iris <- dataWithFiltersNONULL[tindex,]   # Create training set
 test_iris <- dataWithFiltersNONULL[-tindex,]   # Create test set
 
-svm1 <- svm(formula = as.factor(frequencyCounter) ~ ., 
+svm1 <- svm(formula = as.factor(per_day_counter) ~ ., 
             data = train_iris, 
             gamma= 2,
             cost = 1000,
@@ -24,7 +24,7 @@ svm1 <- svm(formula = as.factor(frequencyCounter) ~ .,
             na.action=na.omit)
 svm_pred = predict(svm1, newdata = test_iris[-3])
 
-confusionMatrix(test_iris$frequencyCounter, svm_pred)
+confusionMatrix(test_iris$per_day_counter, svm_pred)
 
 plot(svm1, train_iris)
 points(train_iris, pch = "+", col = 3)

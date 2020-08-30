@@ -19,7 +19,7 @@ normalize <- function(x) {
 
 dataForSvm$cik<-normalize(dataForSvm$cik)
 dataForSvm$time<-normalize(dataForSvm$time)
-dataForSvm$LM<- ifelse(dataForSvm$LM == 1, 0, 1)
+dataForSvm<- select(dataForSvm, time, cik, LM)
 dataForSvm$LM<-as.factor(dataForSvm$LM)
 
 # Razdvojiti podatke na testne i trenirajuće primjerke
@@ -70,8 +70,8 @@ plot(set[, -3],
      xlim = range(X1), ylim = range(X2)) 
 
 contour(X1, X2, matrix(as.numeric(y_grid), length(X1), length(X2)), add = TRUE) 
-points(grid_set, pch = '.', col = ifelse(y_grid == 1, 'coral1', 'aquamarine')) 
-points(set, pch = 21, bg = ifelse(set[, 3] == 1, 'red3','green4')) 
+points(grid_set, pch = '.', col = ifelse(y_grid == "robot", 'coral1', 'aquamarine')) 
+points(set, pch = 21, bg = ifelse(set[, 3] == "robot", 'red3','green4')) 
 
 # TEST DATA SVM
 set = test_set 
