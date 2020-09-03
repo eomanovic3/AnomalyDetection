@@ -2,7 +2,10 @@ library(e1071)
 library(caret)
 library(NLP)
 library(tm)
-dataForSvm = select(noviFinalniSetZaFiltiranje, time, cik, LM)
+library(pROC)
+library(LOF)
+dataForSvm = noviFinalniSetZaFiltiranje
+pROCdataForSvm = select(noviFinalniSetZaFiltiranje, time, cik, LM)
 
 dataForSvm$SpeciesClass[dataForSvm$LM=="human"] <- "TRUE"
 dataForSvm$SpeciesClass[dataForSvm$LM!="human"] <- "FALSE"
@@ -28,8 +31,8 @@ testpredictors$time<-normalize(testpredictors$time)
 svm.model<-svm(trainpredictors,
                y=NULL,
                type='one-classification',
-               nu=0.11,
-               gamma=90,
+               nu=0.87,
+               gamma=0.0001,
                kernel="radial")
 
 svm.predtrain<-predict(svm.model,trainpredictors)
@@ -59,5 +62,33 @@ out_index=which(svm.predtest==TRUE)
 plot(labelsForTestData, col="blue", type="l")
 df = as.data.frame(out_index)
 points(x=out_index, y=labelsForTestData[out_index], pch='|',  col="red", cex=1)
-something = noviFinalniSetZaFiltiranje[noviFinalniSetZaFiltiranje$X == 492 | noviFinalniSetZaFiltiranje$X == 517 | noviFinalniSetZaFiltiranje$X == 517| noviFinalniSetZaFiltiranje$X == 524| noviFinalniSetZaFiltiranje$X == 580| noviFinalniSetZaFiltiranje$X == 587| noviFinalniSetZaFiltiranje$X == 588| noviFinalniSetZaFiltiranje$X == 465| noviFinalniSetZaFiltiranje$X == 526| noviFinalniSetZaFiltiranje$X == 527 ,]
+something = noviFinalniSetZaFiltiranje[noviFinalniSetZaFiltiranje$X %in% out_index,]
 proba = cbind(something$ip, something$LM)
+
+dataForSvm$ip = as.factor(dataForSvm$ip)
+X <- dataForSvm[,3:4]
+
+# Find outliers by setting an optional k
+outlier_score <- lofactor(X, k=10)
+
+# Sort and find index for most outlying observations
+names(outlier_score) <- 1:nrow(X)
+sort(outlier_score, decreasing = TRUE)
+
+# Inspect the distribution of outlier scores
+hist(outlier_score)
+
+outliers <- order(outlier_score, decreasing=T)[1:5]
+print(outliers)
+
+n <- nrow(dataForSvm)
+
+labels <- 1:n
+
+labels[-outliers] <- "."
+
+biplot(prcomp(dataForSvm[,3:4]), cex=.8, xlabs=labels)
+
+sets = noviFinalniSetZaFiltiranje
+sets$label= sets$LM
+write.csv(sets, '/Users/emina/Desktop/setPodataka.csv')
